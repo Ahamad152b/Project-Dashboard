@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Parser Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #fcfcfc; color: #333; }
+        .upload-card { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .err-msg { color: #d9534f; font-weight: bold; margin-top: 10px; }
+    </style>
+    <!-- Hardcoded CDN Fallback Loop Script to guarantee XLSX definition -->
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'SCRIPT') {
+                document.getElementById('parseError').textContent = 'Retrying CDN backup connection...';
+            }
+        }, true);
+    </script>
+    <script src="xlsx.full.min.js" onerror="this.onerror=null; this.src='https://cloudflare.com';"></script>
+</head>
+<body>
+
+    <h2>Import Dataset</h2>
+    <div class="upload-card">
+        <input type="file" id="uploadExcel" accept=".xlsx, .xls" />
+        <div id="parseError" class="err-msg"></div>
+    </div>
+
+    <h3>Raw Data Summary</h3>
+    <table id="displayTable">
+        <thead>
+            <tr>
+                <th>Column A</th>
+                <th>Column B</th>
+                <th>Column C</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="3" style="text-align: center; color: #777;">No data imported yet. Select an Excel file to view raw data records.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        document.getElementById('uploadExcel').addEventListener('change', function(event) {
+            const errorElement = document.getElementById('parseError');
+            errorElement.textContent = ''; 
+
+            if (typeof XLSX === 'undefined') {
+                errorElement.textContent = 'Critical Error: The SheetJS engine is completely blocked by your system permissions or browser settings.';
+                return;
+            }
+
+            const uploadedFile = event.target.files[0];
+            if (!uploadedFile) return;
+
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const binaryData = new Uint8Array(e.target.result);
+                    const workbookInstance = XLSX.read(binaryData, { type: 'array' });
+                    
+                    const targetedSheetName = workbookInstance.SheetNames[0];
+                    const activeWorksheet = workbookInstance.Sheets[targetedSheetName];
+                    const rowMatrix = XLSX.utils.sheet_to_json(activeWorksheet, { header: 1 });
+
+                    renderGridData(rowMatrix);
+                } catch (exception) {
+                    errorElement.textContent = 'Parsing Exception: Failed to interpret file. Verify structure.';
+                    console.error(exception);
+                }
+            };
+            fileReader.readAsArrayBuffer(uploadedFile);
+        });
+
+        function renderGridData(matrixData) {
+            const tableBodyElement = document.querySelector('#displayTable tbody');
+            tableBodyElement.innerHTML = ''; 
+
+            if (!matrixData || matrixData.length === 0) {
+                tableBodyElement.innerHTML = '<tr><td colspan="3" style="text-align: center;">No valid entries found within sheet structure.</td></tr>';
+                return;
+            }
+
+            matrixData.forEach((rowRecord) => {
+                if (!rowRecord || rowRecord.length === 0) return;
+
+                const tableRowDom = document.createElement('tr');
+
+                const mappedValueA = rowRecord[0] !== undefined ? rowRecord[0] : '';
+                const mappedValueB = rowRecord[1] !== undefined ? rowRecord[1] : '';
+                const mappedValueC = rowRecord[2] !== undefined ? rowRecord[2] : '';
+
+                tableRowDom.innerHTML = `
+                    <td>${mappedValueA}</td>
+                    <td>${mappedValueB}</td>
+                    <td>${mappedValueC}</td>
+                `;
+                tableBodyElement.appendChild(tableRowDom);
+            });
+        }
+    </script>
+
+</body>
+</html>
